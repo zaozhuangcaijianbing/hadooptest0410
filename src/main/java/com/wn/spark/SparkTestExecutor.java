@@ -91,7 +91,7 @@ public class SparkTestExecutor {
         reduceRdd.foreachRDD(new VoidFunction<JavaPairRDD<String, Integer>>() {
             @Override
             public void call(JavaPairRDD<String, Integer> stringIntegerJavaPairRDD) throws Exception {
-                System.out.println(System.out.println("SparkTestExecutor foreachRDD: " +":" + new Date() + ":" + InetAddress.getLocalHost().getHostAddress());
+                System.out.println("SparkTestExecutor foreachRDD: " +":" + new Date() + ":" + InetAddress.getLocalHost().getHostAddress());
 
                 stringIntegerJavaPairRDD.foreachPartition(new VoidFunction<Iterator<Tuple2<String, Integer>>>() {
                     @Override
