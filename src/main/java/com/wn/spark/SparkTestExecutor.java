@@ -5,6 +5,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import kafka.serializer.StringDecoder;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.spark.Accumulator;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.function.Function;
@@ -18,6 +19,7 @@ import org.apache.spark.streaming.api.java.JavaPairDStream;
 import org.apache.spark.streaming.api.java.JavaPairInputDStream;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import org.apache.spark.streaming.kafka.KafkaUtils;
+import org.apache.spark.util.LongAccumulator;
 import scala.Tuple2;
 
 import java.net.InetAddress;
@@ -45,6 +47,7 @@ public class SparkTestExecutor {
 
         System.out.println("SparkTestExecutor kafkaStream: " + new Date() + ":" + InetAddress.getLocalHost().getHostAddress());
 
+        //增加广播变量
         List<String> list = Lists.newArrayList();
         for(int i = 0;i< 10000;i++){
             list.add("" + i);
@@ -53,7 +56,10 @@ public class SparkTestExecutor {
 
         System.out.println("main value sise is : " + broadcast.getValue().size());
 
+        //增加累加器
+        LongAccumulator sum = streamingContext.sparkContext().sc().longAccumulator("sum");
 
+        
         JavaDStream<KafkaMessage> messageRDD =  kafkaStream.map(new Function<Tuple2<String,String>, KafkaMessage>() {
             @Override
             public KafkaMessage call(Tuple2<String, String> tuple2) throws Exception {
