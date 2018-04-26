@@ -1,6 +1,7 @@
 package com.wn.spark;
 
 import com.alibaba.fastjson.JSON;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import kafka.serializer.StringDecoder;
 import org.apache.commons.lang3.StringUtils;
@@ -10,6 +11,7 @@ import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFunction;
 import org.apache.spark.api.java.function.VoidFunction;
+import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.streaming.Durations;
 import org.apache.spark.streaming.api.java.JavaDStream;
 import org.apache.spark.streaming.api.java.JavaPairDStream;
@@ -21,6 +23,7 @@ import scala.Tuple2;
 import java.net.InetAddress;
 import java.util.Date;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 
@@ -41,6 +44,15 @@ public class SparkTestExecutor {
         JavaPairInputDStream<String, String> kafkaStream = KafkaUtils.createDirectStream(streamingContext, String.class, String.class, StringDecoder.class, StringDecoder.class, kafkaParam, Sets.newHashSet("wn_0413"));
 
         System.out.println("SparkTestExecutor kafkaStream: " + new Date() + ":" + InetAddress.getLocalHost().getHostAddress());
+
+        List<String> list = Lists.newArrayList();
+        for(int i = 0;i< 10000;i++){
+            list.add("" + i);
+        }
+        Broadcast<List<String>> broadcast = streamingContext.sparkContext().broadcast(list);
+
+        System.out.println("main value sise is : " + broadcast.getValue().size());
+
 
         JavaDStream<KafkaMessage> messageRDD =  kafkaStream.map(new Function<Tuple2<String,String>, KafkaMessage>() {
             @Override
@@ -101,6 +113,10 @@ public class SparkTestExecutor {
                             Tuple2<String, Integer> next = tuple2Iterator.next();
                             System.out.println("SparkTestExecutor foreachPartition: "+":" + new Date() + ":" + next._1 + ":" + next._2);
                         }
+
+
+                        List<String> value = broadcast.getValue();
+                        System.out.println("foreachPartition value sise is : " + value.size());
 
 
                     }
