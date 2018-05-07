@@ -1,136 +1,76 @@
 package com.wn.spark;
 
-import com.alibaba.fastjson.JSON;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-import kafka.serializer.StringDecoder;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.spark.Accumulator;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.spark.SparkConf;
-import org.apache.spark.api.java.JavaPairRDD;
-import org.apache.spark.api.java.function.Function;
-import org.apache.spark.api.java.function.Function2;
-import org.apache.spark.api.java.function.PairFunction;
+import org.apache.spark.TaskContext;
+import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.function.VoidFunction;
-import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.streaming.Durations;
-import org.apache.spark.streaming.api.java.JavaDStream;
-import org.apache.spark.streaming.api.java.JavaPairDStream;
-import org.apache.spark.streaming.api.java.JavaPairInputDStream;
-import org.apache.spark.streaming.api.java.JavaStreamingContext;
-import org.apache.spark.streaming.kafka.KafkaUtils;
-import org.apache.spark.util.LongAccumulator;
-import scala.Tuple2;
+import org.apache.spark.streaming.api.java.*;
+import org.apache.spark.streaming.kafka010.*;
 
-import java.net.InetAddress;
-import java.util.Date;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 
 /**
+ * 使用spark-streaming-kafka-0-10
  * nohup spark-submit --master yarn --deploy-mode cluster --class com.wn.spark.SparkTestExecutor --executor-memory 2g --driver-memory 1g --num-executors 2 --executor-cores 2 --queue default --conf spark.default.parallelism=3 --conf spark.streaming.concurrentJobs=1 --conf spark.streaming.kafka.maxRatePerPartition=2000 /home/dd/example/hadoop-examples-jar-with-dependencies.jar >> /home/dd/example/example.log 2>&1 &
  * nohup spark-submit --master yarn --deploy-mode client --class com.wn.spark.SparkTestExecutor --executor-memory 2g --driver-memory 1g --num-executors 2 --executor-cores 2 --queue default --conf spark.default.parallelism=3 --conf spark.streaming.concurrentJobs=1 --conf spark.streaming.kafka.maxRatePerPartition=2000 /home/dd/example/hadoop-examples-jar-with-dependencies.jar >> /home/dd/example/example.log 2>&1 &
  */
 public class SparkTestExecutor {
-    public static void main(String[] args) throws Exception{
-        System.out.println("SparkTestExecutor start: " + new Date() + ":" + InetAddress.getLocalHost().getHostAddress());
+    public static void main(String[] args) throws Exception {
 
-        SparkConf sparkConf = new SparkConf().setAppName("SparkTestExecutor").set("spark.streaming.stopGracefullyOnShutdown", "true");
+        SparkConf sparkConf = new SparkConf().setAppName("SparkTestExecutor").set("spark.streaming.stopGracefullyOnShutdown", "true").setMaster("local[4]");
 
-        JavaStreamingContext streamingContext = new JavaStreamingContext(sparkConf, Durations.seconds(60));
+        JavaStreamingContext streamingContext = new JavaStreamingContext(sparkConf, Durations.seconds(20));
 
-        Map<String, String> kafkaParam = new KafkaParamBuilder().brokerAddress().group("spark.emr.SparkTestExecutor").toBuilder();
 
-        JavaPairInputDStream<String, String> kafkaStream = KafkaUtils.createDirectStream(streamingContext, String.class, String.class, StringDecoder.class, StringDecoder.class, kafkaParam, Sets.newHashSet("wn_0413"));
+        Map<String, Object> kafkaParams = new HashMap<>();
+        kafkaParams.put("bootstrap.servers", "server3:9092");
+        kafkaParams.put("key.deserializer", StringDeserializer.class);
+        kafkaParams.put("value.deserializer", StringDeserializer.class);
+        kafkaParams.put("group.id", "spark.emr.SparkTestExecutor");
+        kafkaParams.put("auto.offset.reset", "latest");
+        kafkaParams.put("enable.auto.commit", false);
 
-        System.out.println("SparkTestExecutor kafkaStream: " + new Date() + ":" + InetAddress.getLocalHost().getHostAddress());
+        Collection<String> topics = Arrays.asList("kafka_topic_test");
 
-        //增加广播变量
-        List<String> list = Lists.newArrayList();
-        for(int i = 0;i< 10000;i++){
-            list.add("" + i);
-        }
-        Broadcast<List<String>> broadcast = streamingContext.sparkContext().broadcast(list);
+        JavaInputDStream<ConsumerRecord<String, String>> stream = KafkaUtils.createDirectStream(
+                streamingContext,
+                LocationStrategies.PreferConsistent(),
+                ConsumerStrategies.<String, String>Subscribe(topics, kafkaParams)
+        );
 
-        System.out.println("main value sise is : " + broadcast.getValue().size());
+        //打印本次条数
+        stream.count().print();
 
-        //增加累加器
-        LongAccumulator sum = streamingContext.sparkContext().sc().longAccumulator("sum");
-
-        
-        JavaDStream<KafkaMessage> messageRDD =  kafkaStream.map(new Function<Tuple2<String,String>, KafkaMessage>() {
+        //Obtaining Offsets
+        stream.foreachRDD(new VoidFunction<JavaRDD<ConsumerRecord<String, String>>>() {
             @Override
-            public KafkaMessage call(Tuple2<String, String> tuple2) throws Exception {
-                if (StringUtils.isBlank(tuple2._2)) {
-                    return null;
-                }
-
-                System.out.println("SparkTestExecutor map: " + new Date() + ":" + InetAddress.getLocalHost().getHostAddress());
-
-                KafkaMessage kafkaMessage = JSON.parseObject(tuple2._2, KafkaMessage.class);
-                return kafkaMessage;
-            }
-        });
-
-        JavaDStream<KafkaMessage> filterMessageRDD = messageRDD.filter(new Function<KafkaMessage, Boolean>() {
-
-            @Override
-            public Boolean call(KafkaMessage kafkaMessage) throws Exception {
-                if (null == kafkaMessage || null == kafkaMessage.getOp()) {
-                    return false;
-                }
-
-                System.out.println("SparkTestExecutor filter: " + new Date() + ":" + InetAddress.getLocalHost().getHostAddress());
-
-                return true;
-            }
-        });
-
-
-        JavaPairDStream<String, Integer> javaPairDStream = filterMessageRDD.mapToPair(new PairFunction<KafkaMessage, String, Integer>() {
-            @Override
-            public Tuple2<String, Integer> call(KafkaMessage message) throws Exception {
-                return new Tuple2<>(message.getAk() + ":" + message.getUdid(), 1);
-            }
-        });
-
-        JavaPairDStream<String, Integer> reduceRdd = javaPairDStream.reduceByKey(new Function2<Integer, Integer, Integer>() {
-            @Override
-            public Integer call(Integer v1, Integer v2) throws Exception {
-                System.out.println("SparkTestExecutor reduceByKey: " + v1 + ":" + new Date() + ":" + InetAddress.getLocalHost().getHostAddress());
-                return v1 + v2;
-            }
-        });
-
-
-
-        reduceRdd.foreachRDD(new VoidFunction<JavaPairRDD<String, Integer>>() {
-            @Override
-            public void call(JavaPairRDD<String, Integer> stringIntegerJavaPairRDD) throws Exception {
-                System.out.println("SparkTestExecutor foreachRDD: " +":" + new Date() + ":" + InetAddress.getLocalHost().getHostAddress());
-
-                stringIntegerJavaPairRDD.foreachPartition(new VoidFunction<Iterator<Tuple2<String, Integer>>>() {
+            public void call(JavaRDD<ConsumerRecord<String, String>> consumerRecordJavaRDD) throws Exception {
+                OffsetRange[] offsetRanges = ((HasOffsetRanges) consumerRecordJavaRDD.rdd()).offsetRanges();
+                consumerRecordJavaRDD.foreachPartition(new VoidFunction<Iterator<ConsumerRecord<String, String>>>() {
                     @Override
-                    public void call(Iterator<Tuple2<String, Integer>> tuple2Iterator) throws Exception {
-                        System.out.println("SparkTestExecutor foreachPartition: " +":" + new Date() + ":" + InetAddress.getLocalHost().getHostAddress());
-                        while(tuple2Iterator.hasNext()){
-                            Tuple2<String, Integer> next = tuple2Iterator.next();
-                            System.out.println("SparkTestExecutor foreachPartition: "+":" + new Date() + ":" + next._1 + ":" + next._2);
-                        }
-
-
-                        List<String> value = broadcast.getValue();
-                        System.out.println("foreachPartition value sise is : " + value.size());
-
-
+                    public void call(Iterator<ConsumerRecord<String, String>> consumerRecordIterator) throws Exception {
+                        OffsetRange o = offsetRanges[TaskContext.get().partitionId()];
+                        System.out.println(
+                                o.topic() + " " + o.partition() + " " + o.fromOffset() + " " + o.untilOffset());
                     }
                 });
             }
         });
 
-        System.out.println("SparkTestExecutor ttttttt: " + new Date() + ":" + InetAddress.getLocalHost().getHostAddress());
+
+        //提交偏移量
+        stream.foreachRDD(new VoidFunction<JavaRDD<ConsumerRecord<String, String>>>() {
+            @Override
+            public void call(JavaRDD<ConsumerRecord<String, String>> consumerRecordJavaRDD) throws Exception {
+                OffsetRange[] offsetRanges = ((HasOffsetRanges) consumerRecordJavaRDD.rdd()).offsetRanges();
+                ((CanCommitOffsets) stream.inputDStream()).commitAsync(offsetRanges);
+            }
+        });
+
 
         streamingContext.start();
         try {
