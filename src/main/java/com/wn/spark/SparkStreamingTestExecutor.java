@@ -15,13 +15,13 @@ import java.util.*;
 
 /**
  * 使用spark-streaming-kafka-0-10
- * nohup spark-submit --master yarn --deploy-mode cluster --class com.wn.spark.SparkTestExecutor --executor-memory 2g --driver-memory 1g --num-executors 2 --executor-cores 2 --queue default --conf spark.default.parallelism=3 --conf spark.streaming.concurrentJobs=1 --conf spark.streaming.kafka.maxRatePerPartition=2000 /home/dd/example/hadoop-examples-jar-with-dependencies.jar >> /home/dd/example/example.log 2>&1 &
- * nohup spark-submit --master yarn --deploy-mode client --class com.wn.spark.SparkTestExecutor --executor-memory 2g --driver-memory 1g --num-executors 2 --executor-cores 2 --queue default --conf spark.default.parallelism=3 --conf spark.streaming.concurrentJobs=1 --conf spark.streaming.kafka.maxRatePerPartition=2000 /home/dd/example/hadoop-examples-jar-with-dependencies.jar >> /home/dd/example/example.log 2>&1 &
+ * nohup spark-submit --master yarn --deploy-mode cluster --class com.wn.spark.SparkStreamingTestExecutor --executor-memory 2g --driver-memory 1g --num-executors 2 --executor-cores 2 --queue default --conf spark.default.parallelism=3 --conf spark.streaming.concurrentJobs=1 --conf spark.streaming.kafka.maxRatePerPartition=2000 /home/dd/example/hadoop-examples-jar-with-dependencies.jar >> /home/dd/example/example.log 2>&1 &
+ * nohup spark-submit --master yarn --deploy-mode client --class com.wn.spark.SparkStreamingTestExecutor --executor-memory 2g --driver-memory 1g --num-executors 2 --executor-cores 2 --queue default --conf spark.default.parallelism=3 --conf spark.streaming.concurrentJobs=1 --conf spark.streaming.kafka.maxRatePerPartition=2000 /home/dd/example/hadoop-examples-jar-with-dependencies.jar >> /home/dd/example/example.log 2>&1 &
  */
-public class SparkTestExecutor {
+public class SparkStreamingTestExecutor {
     public static void main(String[] args) throws Exception {
 
-        SparkConf sparkConf = new SparkConf().setAppName("SparkTestExecutor").set("spark.streaming.stopGracefullyOnShutdown", "true").setMaster("local[4]");
+        SparkConf sparkConf = new SparkConf().setAppName("SparkStreamingTestExecutor").set("spark.streaming.stopGracefullyOnShutdown", "true").setMaster("local[4]");
 
         JavaStreamingContext streamingContext = new JavaStreamingContext(sparkConf, Durations.seconds(20));
 
@@ -30,7 +30,7 @@ public class SparkTestExecutor {
         kafkaParams.put("bootstrap.servers", "server3:9092");
         kafkaParams.put("key.deserializer", StringDeserializer.class);
         kafkaParams.put("value.deserializer", StringDeserializer.class);
-        kafkaParams.put("group.id", "spark.emr.SparkTestExecutor");
+        kafkaParams.put("group.id", "spark.emr.SparkStreamingTestExecutor");
         kafkaParams.put("auto.offset.reset", "latest");
         kafkaParams.put("enable.auto.commit", false);
 
