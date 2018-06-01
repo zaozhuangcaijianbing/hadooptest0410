@@ -5,6 +5,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.spark.SparkConf;
 import org.apache.spark.TaskContext;
+import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.VoidFunction;
@@ -14,9 +15,11 @@ import org.apache.spark.streaming.api.java.JavaInputDStream;
 import org.apache.spark.streaming.api.java.JavaPairDStream;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import org.apache.spark.streaming.kafka010.*;
+import org.apache.spark.streaming.scheduler.*;
 import scala.Tuple2;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 
 public class SparkStreamingTestExecutor2 {
@@ -24,7 +27,50 @@ public class SparkStreamingTestExecutor2 {
 
         SparkConf sparkConf = new SparkConf().setAppName("SparkStreamingTestExecutor2").set("spark.streaming.stopGracefullyOnShutdown", "true").setMaster("local[4]");
 
-        JavaStreamingContext streamingContext = new JavaStreamingContext(sparkConf, Durations.seconds(20));
+        JavaStreamingContext streamingContext = new JavaStreamingContext(sparkConf, Durations.seconds(2));
+        streamingContext.addStreamingListener(new StreamingListener() {
+            private AtomicInteger totalAlarm=new AtomicInteger(0);
+
+            private  int threshold = 2*10*1000;
+
+            @Override
+            public void onBatchStarted(StreamingListenerBatchStarted batchStarted) {
+            }
+
+            @Override
+            public void onReceiverStarted(StreamingListenerReceiverStarted receiverStarted) {
+            }
+
+            @Override
+            public void onBatchCompleted(StreamingListenerBatchCompleted batchCompleted) {
+                if(null!=batchCompleted.batchInfo()){
+                    Long totalDelay=Long.valueOf(batchCompleted.batchInfo().totalDelay().get().toString());
+                    Long processingDelay=Long.valueOf(batchCompleted.batchInfo().processingDelay().get().toString());
+                    System.out.println(totalDelay);
+                    System.out.println(processingDelay);
+                }
+            }
+
+            @Override
+            public void onReceiverStopped(StreamingListenerReceiverStopped receiverStopped) {
+            }
+
+            @Override
+            public void onOutputOperationStarted(StreamingListenerOutputOperationStarted outputOperationStarted) {
+            }
+
+            @Override
+            public void onBatchSubmitted(StreamingListenerBatchSubmitted batchSubmitted) {
+            }
+
+            @Override
+            public void onOutputOperationCompleted(StreamingListenerOutputOperationCompleted outputOperationCompleted) {
+            }
+
+            @Override
+            public void onReceiverError(StreamingListenerReceiverError receiverError) {
+            }
+        });
 
 
         Map<String, Object> kafkaParams = new HashMap<>();
@@ -51,6 +97,18 @@ public class SparkStreamingTestExecutor2 {
 
         JavaPairDStream<String, KafkaMessage> pairDStream = map.mapToPair(message -> {
             return new Tuple2<>(message.getAv(), message);
+        });
+
+        pairDStream.foreachRDD(new VoidFunction<JavaPairRDD<String, KafkaMessage>>() {
+            @Override
+            public void call(JavaPairRDD<String, KafkaMessage> stringKafkaMessageJavaPairRDD) throws Exception {
+                stringKafkaMessageJavaPairRDD.foreachPartition(new VoidFunction<Iterator<Tuple2<String, KafkaMessage>>>() {
+                    @Override
+                    public void call(Iterator<Tuple2<String, KafkaMessage>> tuple2Iterator) throws Exception {
+                        Thread.sleep(10000);
+                    }
+                });
+            }
         });
 
 
