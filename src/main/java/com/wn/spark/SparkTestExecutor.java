@@ -18,7 +18,7 @@ public class SparkTestExecutor {
         SparkConf conf = new SparkConf().setAppName("SparkTestExecutor").setMaster("local[4]");
         JavaSparkContext sc = new JavaSparkContext(conf);
 
-        JavaRDD<String> stringJavaRDD = sc.textFile("F:\\hadooptest0410\\src\\main\\resources\\clickflow\\click.txt", 4);
+        JavaRDD<String> stringJavaRDD = sc.textFile("file:///Users/wangning/ideaProject/mytestproject/hadooptest0410/src/main/resources/clickflow/click.txt", 4);
 
         JavaRDD<KafkaMessage> map = stringJavaRDD.map(oldMessage -> {
             KafkaMessage kafkaMessage = JSON.parseObject(oldMessage, KafkaMessage.class);
@@ -43,7 +43,7 @@ public class SparkTestExecutor {
 
         JavaRDD<KafkaMessage> union = iosFilter.union(androidFilter);
 
-        System.out.println(union.count());
+        System.out.println("count1：" + union.count());
 
         JavaPairRDD<String, KafkaMessage> stringKafkaMessageJavaPairRDD = union.mapToPair(message -> {
             Thread.sleep(5);
@@ -55,6 +55,6 @@ public class SparkTestExecutor {
 
 
         long count = stringIterableJavaPairRDD.count();
-        System.out.println(count);
+        System.out.println("count2：" + count);
     }
 }
